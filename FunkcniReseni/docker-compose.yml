@@ -1,0 +1,435 @@
+name: bsqbd-mongodb
+
+services:
+  keyfile-generator:
+    image: mongo:8.0
+    container_name: keyfile-generator
+    user: root
+    volumes:
+      - keyfile-volume:/etc/mongo
+    restart: "no"
+    entrypoint: >
+      bash -c "
+        if [ ! -f /etc/mongo/keyfile ]; then
+          echo 'Generating keyfile...' &&
+          openssl rand -base64 756 > /etc/mongo/keyfile &&
+          chown 999:999 /etc/mongo/keyfile &&
+          chmod 400 /etc/mongo/keyfile &&
+          echo 'Keyfile generated!';
+        else
+          echo 'Keyfile exists, skipping.';
+        fi
+      "
+
+  configsvr1:
+    image: mongo:8.0
+    container_name: configsvr1
+    command: mongod --configsvr --replSet configReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - configsvr1-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  configsvr2:
+    image: mongo:8.0
+    container_name: configsvr2
+    command: mongod --configsvr --replSet configReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - configsvr2-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  configsvr3:
+    image: mongo:8.0
+    container_name: configsvr3
+    command: mongod --configsvr --replSet configReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - configsvr3-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  init-configsvr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: init-configsvr
+    network_mode: "service:configsvr1"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+      - ./init:/init:ro
+    depends_on:
+      configsvr1:
+        condition: service_healthy
+      configsvr2:
+        condition: service_healthy
+      configsvr3:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: bash /init/init-configsvr.sh
+
+  shard1-primary:
+    image: mongo:8.0
+    container_name: shard1-primary
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard1-primary-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  shard1-secondary1:
+    image: mongo:8.0
+    container_name: shard1-secondary1
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard1-secondary1-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  shard1-secondary2:
+    image: mongo:8.0
+    container_name: shard1-secondary2
+    command: mongod --shardsvr --replSet shard1ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard1-secondary2-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  shard2-primary:
+    image: mongo:8.0
+    container_name: shard2-primary
+    command: mongod --shardsvr --replSet shard2ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard2-primary-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  shard2-secondary1:
+    image: mongo:8.0
+    container_name: shard2-secondary1
+    command: mongod --shardsvr --replSet shard2ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard2-secondary1-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  shard2-secondary2:
+    image: mongo:8.0
+    container_name: shard2-secondary2
+    command: mongod --shardsvr --replSet shard2ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard2-secondary2-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  shard3-primary:
+    image: mongo:8.0
+    container_name: shard3-primary
+    command: mongod --shardsvr --replSet shard3ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard3-primary-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  shard3-secondary1:
+    image: mongo:8.0
+    container_name: shard3-secondary1
+    command: mongod --shardsvr --replSet shard3ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard3-secondary1-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  shard3-secondary2:
+    image: mongo:8.0
+    container_name: shard3-secondary2
+    command: mongod --shardsvr --replSet shard3ReplSet --port 27017 --bind_ip_all --keyFile /etc/mongo/keyfile
+    volumes:
+      - shard3-secondary2-data:/data/db
+      - keyfile-volume:/etc/mongo:ro
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      keyfile-generator:
+        condition: service_completed_successfully
+
+  init-shard1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: init-shard1
+    network_mode: "service:shard1-primary"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+      - ./init:/init:ro
+    depends_on:
+      init-configsvr:
+        condition: service_completed_successfully
+      shard1-primary:
+        condition: service_healthy
+      shard2-primary:
+        condition: service_healthy
+      shard3-primary:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: bash /init/init-shard1.sh
+
+  init-shard2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: init-shard2
+    network_mode: "service:shard2-primary"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+      - ./init:/init:ro
+    depends_on:
+      init-shard1:
+        condition: service_completed_successfully
+    restart: "no"
+    entrypoint: bash /init/init-shard2.sh
+
+  init-shard3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: init-shard3
+    network_mode: "service:shard3-primary"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+      - ./init:/init:ro
+    depends_on:
+      init-shard2:
+        condition: service_completed_successfully
+    restart: "no"
+    entrypoint: bash /init/init-shard3.sh
+
+  mongos:
+    image: mongo:8.0
+    container_name: mongos
+    command: >
+      mongos
+      --configdb configReplSet/configsvr1:27017,configsvr2:27017,configsvr3:27017
+      --bind_ip_all
+      --port 27017
+      --keyFile /etc/mongo/keyfile
+    ports:
+      - "27017:27017"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+    depends_on:
+      init-shard3:
+        condition: service_completed_successfully
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--port",
+          "27017",
+          "--eval",
+          "db.runCommand('ping').ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  mongo-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mongo-init
+    network_mode: "service:mongos"
+    volumes:
+      - keyfile-volume:/etc/mongo:ro
+      - ./init:/init:ro
+      - ../Data:/data:ro
+    depends_on:
+      mongos:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      bash -c "
+        echo 'Starting final initialization...' &&
+        sleep 5 &&
+        bash /init/create-users.sh &&
+        bash /init/init-mongos.sh &&
+        mongosh --host 127.0.0.1:27017 -u admin -p adminPassword123 --authenticationDatabase admin /init/validation-schema.js &&
+        bash /init/import-data.sh &&
+        echo 'All done!'
+      "
+
+  compass:
+    image: haohanyang/compass-web:latest
+    container_name: compass
+    ports:
+      - "8080:8080"
+    networks:
+      - mongo-network
+    restart: unless-stopped
+    depends_on:
+      mongos:
+        condition: service_healthy
+    command:
+      - compass-web
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8080"
+      - --mongo-uri
+      - "mongodb://admin:adminPassword123@mongos:27017/admin"
+
+networks:
+  mongo-network:
+    driver: bridge
+
+volumes:
+  keyfile-volume:
+  configsvr1-data:
+  configsvr2-data:
+  configsvr3-data:
+  shard1-primary-data:
+  shard1-secondary1-data:
+  shard1-secondary2-data:
+  shard2-primary-data:
+  shard2-secondary1-data:
+  shard2-secondary2-data:
+  shard3-primary-data:
+  shard3-secondary1-data:
+  shard3-secondary2-data:
